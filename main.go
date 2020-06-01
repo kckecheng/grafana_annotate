@@ -1,78 +1,84 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"log"
+	"os"
+	"time"
 
 	grafana "github.com/grafana-tools/sdk"
+	"github.com/kckecheng/grafana_annotate/gapi"
 )
 
-// Grafana object
-type Grafana struct {
-	address  string
-	port     int64
-	user     string
-	password string
-	client   *grafana.Client
-}
-
-// NewGrafana init API connection
-func NewGrafana(address string, port int64, user, password string) *Grafana {
-	client := grafana.NewClient(fmt.Sprintf("http://%s:%d", address, port), fmt.Sprintf("%s:%s", user, password), grafana.DefaultHTTPClient)
-	if client == nil {
-		log.Fatal("Fail to init grafana client")
-		return nil
-	}
-
-	g := Grafana{
-		address:  address,
-		port:     port,
-		user:     user,
-		password: password,
-		client:   client,
-	}
-	return &g
-}
-
-// GetAllDashboards get all the dashboards
-func (g *Grafana) GetAllDashboards() ([]grafana.FoundBoard, error) {
-	boards, err := g.client.Search(context.Background(), grafana.SearchType(grafana.SearchTypeDashboard))
-	if err != nil {
-		return nil, err
-	}
-	return boards, nil
-}
-
-// GetAllPanels get all panels for a dashboard
-func (g *Grafana) GetAllPanels(uid string) ([]*grafana.Panel, error) {
-	board, _, err := g.client.GetDashboardByUID(context.Background(), uid)
-	if err != nil {
-		return nil, err
-	}
-	return board.Panels, nil
-}
-
 func main() {
-	g := NewGrafana("127.0.0.1", 3000, "admin", "admin")
+	host := "127.0.0.1"
+	port := 3000
+	user := "admin"
+	pass := "admin"
+	title := "Prometheus"
+
+	g, err := gapi.NewGrafana(host, int64(port), user, pass)
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	boards, err := g.GetAllDashboards()
 	if err != nil {
-		log.Fatalf("Fail to get all dashboards: %s", err)
+		fmt.Println("Fail to get all dashboards")
+		os.Exit(1)
+	}
+	fmt.Println("*** Dashboards ***")
+	for _, board := range boards {
+		fmt.Printf("ID: %d\n", board.ID)
+		fmt.Printf("UID: %s\n", board.UID)
+		fmt.Printf("Title: %s\n", board.Title)
+		fmt.Println()
 	}
 
-	var tuid string
-	tname := "Prometheus"
+	var dashboard grafana.FoundBoard
 	for _, board := range boards {
-		if board.Title == tname {
-			tuid = board.UID
+		if board.Title == title {
+			dashboard = board
 			break
 		}
 	}
 
-	panels, err := g.GetAllPanels(tuid)
+	panels, err := g.GetAllPanels(dashboard.UID)
+	if err != nil {
+		fmt.Println("Fail to get all panels")
+		os.Exit(1)
+	}
+	fmt.Println("*** Panels ***")
 	for _, panel := range panels {
-		fmt.Println("Panel ID", panel.ID)
-		fmt.Println("Panel Title", panel.Title)
-		fmt.Println("Panel Type", panel.Type)
+		fmt.Printf("ID: %d\n", panel.ID)
+		fmt.Printf("Title: %s\n", panel.Title)
+		fmt.Println()
+	}
+
+	now := time.Now()
+	start := now.Add(-10*time.Minute).Unix() * 1000
+	end := now.Add(-5*time.Minute).Unix() * 1000
+
+	for _, panel := range panels {
+		_, err := g.CreateAnnotation(dashboard.ID, panel.ID, start, end, []string{"tag1", "tag2"}, "Hello world")
+		if err != nil {
+			fmt.Printf("Fail to create annotation")
+			os.Exit(1)
+		}
+	}
+
+	var tzero time.Time
+	annotations, err := g.GetAnnotattions(nil, nil, tzero, tzero, nil)
+	if err != nil {
+		fmt.Println("Fail to get annotations")
+	}
+	fmt.Println("*** Annotations ***")
+	for _, annotation := range annotations {
+		fmt.Printf("Dashboard: %d\n", annotation.DashboardID)
+		fmt.Printf("Panel: %d\n", annotation.PanelID)
+		fmt.Printf("Start Time: %d\n", annotation.Time)
+		fmt.Printf("End Time: %d\n", annotation.TimeEnd)
+		fmt.Printf("Tags: %v\n", annotation.Tags)
+		fmt.Printf("Text: %s\n", annotation.Text)
+		fmt.Println()
 	}
 }
