@@ -3,6 +3,7 @@ package gapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -24,6 +25,10 @@ func NewGrafana(address string, port int64, user, password string) (*Grafana, er
 	if client == nil {
 		return nil, fmt.Errorf("Could not initial a client to Grafana")
 	}
+	_, err := client.GetHealth(context.Background())
+	if err != nil {
+		return nil, errors.New("Fail to connect to the Grafana server")
+	}
 
 	g := Grafana{
 		address:  address,
@@ -42,6 +47,21 @@ func (g *Grafana) GetAllDashboards() ([]grafana.FoundBoard, error) {
 		return nil, err
 	}
 	return boards, nil
+}
+
+// GetDashboard get a single dashboard by its ID
+func (g *Grafana) GetDashboard(id uint) (*grafana.FoundBoard, error) {
+	boards, err := g.GetAllDashboards()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, board := range boards {
+		if board.ID == id {
+			return &board, nil
+		}
+	}
+	return nil, errors.New("No dashboard with specified ID exists")
 }
 
 // GetAllPanels get all panels for a dashboard
@@ -112,4 +132,10 @@ func (g *Grafana) CreateAnnotation(dashboardId, panelId uint, from, to int64, ta
 	}
 
 	return &msg, nil
+}
+
+// DeleteAnnotation Delete an annotation
+func (g *Grafana) DeleteAnnotation(id uint) error {
+	_, err := g.client.DeleteAnnotation(context.Background(), id)
+	return err
 }
