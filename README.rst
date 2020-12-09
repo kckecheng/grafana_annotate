@@ -15,3 +15,8 @@ Usage
   cd grafana_annotate
   go build
   ./grafana_annotate --help
+
+Issues
+-------
+
+- Not compatible with Grafana 7.0+ due to SDK issues.
