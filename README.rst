@@ -1,6 +1,8 @@
 Grafana Annotate
 =================
 
+**Deprecated**: the SDK used for this tool is not compatible with the latest Grafana releases. Please use `grafana_cli <https://github.com/kckecheng/grafana_cli>`_
+
 About
 ------
 
